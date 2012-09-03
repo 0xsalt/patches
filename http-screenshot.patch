@@ -1,0 +1,79 @@
+Index: http-screenshot.nse
+===================================================================
+--- http-screenshot.nse	2012-09-03 00:25:46.300852067 -0700
++++ http-screenshot.nse	2012-09-03 00:25:46.300852067 -0700
+@@ -26,39 +26,48 @@ license = "GPLv2"
+ categories = {"discovery", "safe"}
+ 
+-require "shortport"
++local stdnse = require "stdnse"
++
++local shortport = require "shortport"
+ 
+ portrule = shortport.http
+ 
+ action = function(host, port)
+-	-- Check to see if ssl is enabled, if it is, this will be set to "ssl"
+-	local ssl = port.version.service_tunnel
+ 
+-	-- The default URLs will start with http://
+-	local prefix = "http"
++-- Screenshots will be called <IP>_<port>.png
++local filename = host.ip .. "_" .. port.number .. ".png"
++
++-- If SSL is set on the port, switch the prefix to https
++local prefix = "http"
++if port.version.service_tunnel == "ssl" then
++    prefix = "https"	
++end
+ 
+-	-- Screenshots will be called screenshot-namp-<IP>:<port>.png
+-        local filename = "screenshot-nmap-" .. host.ip .. ":" .. port.number .. ".png"
+-	
+-	-- If SSL is set on the port, switch the prefix to https
+-	if ssl == "ssl" then
+-		prefix = "https"	
+-	end
+-
+-	-- Execute the shell command wkhtmltoimage-i386 <url> <filename>
+-	local cmd = "wkhtmltoimage-i386 -n " .. prefix .. "://" .. host.ip .. ":" .. port.number .. " " .. filename .. " 2> /dev/null   >/dev/null"
+-	
+-	ret = os.execute(cmd)
+-
+-	-- If the command was successful, print the saved message, otherwise print the fail message
+-	local result = "failed (verify wkhtmltoimage-i386 is in your path)"
+-
+-	if ret == 0 then
+-		result = "Saved to " .. filename
+-	end
++local timeout = 60
++if nmap.registry.args.timeout then
++    timeout = nmap.registry.args.timeout
++end
+ 
+-	-- Return the output message
+-	return stdnse.format_output(true,  result)
++local executable = "wkhtmltoimage-i386"
++if nmap.registry.args.arch == "64" then
++	executable = "wkhtmltoimage-amd64"
++end
+ 
++-- Execute the shell command wkhtmltoimage-i386 or -amd64 <url> <filename>, will time out after 60 seconds default. (more if specified)
++cmd = "/bin/bash -c '" .. executable .. " --quality 20 -n " .. prefix .. "://" .. host.ip .. ":" .. port.number .. " " .. filename .. " 2>/dev/null >/dev/null & p=" .. executable .. ";nothing=;c=0;while [[ $c -le " .. timeout .." && -n `ps -C $p | grep -v PID 2>/dev/null` ]];do let c=c+1;sleep 1;done;if [[ -n `ps -C $p | grep -v PID 2>/dev/null` ]];then killall -9 $p >/dev/null;echo process terminated.  exceeded " .. timeout .." second timeout.;fi'"
++os.execute(cmd)
++
++-- Checking to see if screenshot was successful.
++ret = os.execute("/bin/bash -c 'f=" .. filename .. ";if [ -e $f ];then if [ -s $f ];then exit 0;else rm -rf $f;exit 1;fi;else exit 2;fi'")
++
++-- 0 for success, 256 for 0-byte files, generic error for everything else.
++local result = "failed (verify wkhtmltoimage-i386 is in your path)"
++if ret then
++    result = "Saved to " .. filename
++elseif not ret then
++    result = "PNG created, but was 0-byte. Deleted."
+ end
+ 
++-- Return the output message.
++return stdnse.format_output(true, result)
+ 
++end
