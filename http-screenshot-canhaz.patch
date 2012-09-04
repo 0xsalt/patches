@@ -1,0 +1,27 @@
+Index: http-screenshot.nse
+===================================================================
+--- http-screenshot.nse	2012-08-22 17:28:05.000000000 -0700
++++ http-screenshot.nse	2012-09-04 09:21:50.553388538 -0700
+@@ -53,5 +53,5 @@ if nmap.registry.args.arch == "64" then
+ end
+ 
+--- Execute the shell command wkhtmltoimage-i386 <url> <filename>, will time out after 60 seconds default. (more if specified)
++-- Execute the shell command wkhtmltoimage-i386 or -amd64 <url> <filename>, will time out after 60 seconds default. (more if specified)
+ cmd = "/bin/bash -c '" .. executable .. " --quality 20 -n " .. prefix .. "://" .. host.ip .. ":" .. port.number .. " " .. filename .. " 2>/dev/null >/dev/null & p=" .. executable .. ";nothing=;c=0;while [[ $c -le " .. timeout .." && -n `ps -C $p | grep -v PID 2>/dev/null` ]];do let c=c+1;sleep 1;done;if [[ -n `ps -C $p | grep -v PID 2>/dev/null` ]];then killall -9 $p >/dev/null;echo process terminated.  exceeded " .. timeout .." second timeout.;fi'"
+ os.execute(cmd)
+@@ -62,7 +62,7 @@ ret = os.execute("/bin/bash -c 'f=" .. f
+ -- 0 for success, 256 for 0-byte files, generic error for everything else.
+ local result = "failed (verify wkhtmltoimage-i386 is in your path)"
+-if ret == 0 then
++if ret then
+     result = "Saved to " .. filename
+-elseif ret == 256 then
++elseif not ret then
+     result = "PNG created, but was 0-byte. Deleted."
+ end
+@@ -71,3 +71,3 @@ end
+ return stdnse.format_output(true, result)
+ 
+-end
+\ No newline at end of file
++end
