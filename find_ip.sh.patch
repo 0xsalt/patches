@@ -1,0 +1,137 @@
+Index: find_ip.sh
+===================================================================
+--- find_ip.sh	2009-05-21 11:18:32.000000000 -0700
++++ find_ip.sh	2012-09-04 10:20:53.853305713 -0700
+@@ -1,3 +1,11 @@
+ #!/usr/bin/env bash
++#
++# $Id: findip, v0.2 2011/08/09 rswift Exp $
++#
++# author: robin wood
++#       : patched by russ swift
++#
++# added : -l to provide a file with a list of IPs
++#       : -r to randomize the order of a file or subnet
+ 
+ quit_on_found=0
+@@ -5,4 +13,6 @@ packet_count=2
+ subnet=""
+ verbose="-q"
++infile=""
++shuffle=""
+ 
+ usage()
+@@ -21,4 +31,6 @@ OPTIONS:
+ 	-q                Quit when found first free address, default keep going
+ 	-v                Verbose
++	-l <file>         Provide a file with a list of IPs
++	-r                Randomize ip range (implies -s or -l after -r)
+ 
+ EOF
+@@ -37,5 +49,5 @@ EOF
+ fi
+ 
+-while getopts  ":hvs:qc:" flag
++while getopts  ":hvs:qc:l:r" flag
+ do
+ 	case $flag in
+@@ -56,17 +68,24 @@ do
+ 			verbose=""
+ 			;;
++		l)
++			infile=$OPTARG
++			;;
++		r)
++			shuffle=1
++			;;
+ 		?)
+ 			usage
+ 			exit 1
+ 			;;
++
+ 	esac
+ done
+ 
+-if [[ "$subnet" == "" ]]
++if [[ "$subnet" == "" && "$infile" == "" ]]
+ then
+ cat << EOF
+ usage: $0 options
+ 
+-You must provide a subnet
++You must provide a subnet OR an inputfile
+ EOF
+ 	exit 1
+@@ -83,19 +102,57 @@ then
+ fi
+ 
+-for i in {1..254}
+-#for i in {1..254}
+-do
+-	IP=$subnet.$i
+-	arping $verbose -c $packet_count -0 $IP
+-	result=$?
+-	if [[ $result == 0 ]]
+-	then
+-		echo "$IP Used"
+-	else
+-		echo "$IP Free"
+-		if [[ $quit_on_found == 1 ]]
++if [[ "$subnet" != "" ]] && [[ "$shuffle" != "" ]]
++then
++	for i in $(shuf -e {1..254})
++	do
++		IP=$subnet.$i
++		arping $verbose -c $packet_count -D $IP
++		result=$?
++		if [[ $result == 1 ]]
+ 		then
+-			exit
++			echo "$IP Used"
++		else
++			echo "$IP Free"
++			if [[ $quit_on_found == 1 ]]
++			then
++				exit
++			fi
+ 		fi
+-	fi
+-done
++	done
++elif [[ "$subnet" != "" ]] && [[ "$shuffle" == "" ]]	
++then
++	for i in {1..254}
++	do
++		IP=$subnet.$i
++		arping $verbose -c $packet_count -D $IP
++		result=$?
++		if [[ $result == 1 ]]
++		then
++			echo "$IP Used"
++		else
++			echo "$IP Free"
++			if [[ $quit_on_found == 1 ]]
++			then
++				exit
++			fi
++		fi
++	done
++
++else
++	for i in $(<$infile)
++	do
++		IP=$i
++		arping $verbose -c $packet_count -D $IP
++		result=$?
++		if [[ $result == 1 ]]
++		then
++			echo "$IP Used"
++		else
++			echo "$IP Free"
++			if [[ $quit_on_found == 1 ]]
++			then
++				exit
++			fi
++		fi
++	done
++fi
